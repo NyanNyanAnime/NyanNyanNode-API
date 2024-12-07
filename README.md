@@ -1,6 +1,6 @@
 ## API Endpoint
 
-| HTTP Verbs                                                                            | Endpoints                      | Params                                | Action                                 | Example                                        |
+| HTTP Verbs                                                                            | Endpoints                      | Params                                | Description                            | Example                                        |
 | ------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------- | -------------------------------------- | ---------------------------------------------- |       
 | ![](https://github.com/TrotoTrackApp/TrotoTrack-API/blob/readme/utils/img/GET.png)    | `/anime/ongoing/:page`         | `page` (number)                       | Get Ongoing Anime                      | `/anime/ongoing/1`                             |
 | ![](https://github.com/TrotoTrackApp/TrotoTrack-API/blob/readme/utils/img/GET.png)    | `/anime/finished/:page`        | `page` (number)                       | Get Finished Anime                     | `/anime/finished/1`                            |
@@ -11,3 +11,4 @@
 | ![](https://github.com/TrotoTrackApp/TrotoTrack-API/blob/readme/utils/img/GET.png)    | `/anime/search`                | `query` (string)                      | Search Anime                           | `/anime/search?query=spy x family`             |
 | ![](https://github.com/TrotoTrackApp/TrotoTrack-API/blob/readme/utils/img/GET.png)    | `/anime/genres`                |                                       | Get Anime Genres                       | `/anime/genres`                                |
 | ![](https://github.com/TrotoTrackApp/TrotoTrack-API/blob/readme/utils/img/GET.png)    | `/anime/genres/:genre-id/:page`| `genre-id` (string), `page` (number)  | Get Anime Genres Details               | `/anime/genres/action/1`                       |
+| ![](https://github.com/TrotoTrackApp/TrotoTrack-API/blob/readme/utils/img/GET.png)    | `/anime/schedule`              |                                       | Get Anime Schedule                     | `/anime/genres/action/1`                       |
