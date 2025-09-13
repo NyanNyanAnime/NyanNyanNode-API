@@ -179,6 +179,7 @@ const getAnimeDetails = async (req, res) => {
       ".anime__details__widget > div > div:nth-child(1) > ul > li:nth-child(4) > div > div:nth-child(2)"
     )
       .text()
+      .replace(/\s+/g, " ")
       .trim();
     const season = $(
       ".anime__details__widget > div > div:nth-child(1) > ul > li:nth-child(5) > div > div:nth-child(2)"
@@ -356,106 +357,106 @@ const searchAnime = async (req, res) => {
 const getEpisodeAnime = async (req, res) => {
   try {
     const { animeCode, animeId, episodeId } = req.params;
-    const servers = ["kuramadrive", "archive", "archive-v2"];
-    const urlEpisode = `${baseUrl}/anime/${animeCode}/${animeId}/episode/${episodeId}`;
+    const server = req.query.server ?? "kuramadrive";
+    const url = `${baseUrl}/anime/${animeCode}/${animeId}/episode/${episodeId}?u5TMI8pGCYyhAIi=VSey4XRtK8&X08dP5p9kKerYp9=${server}&page=1`;
 
-    const response = await fetch(urlEpisode);
-    const data = await response.text();
-
-    const $ = cheerio.load(data);
-    const kps = $("div.mt-3:nth-child(2)").attr("data-kps");
-
-    if (!kps) {
-      return res.status(500).json({
-        status: false,
-        message: "KPS not found.",
-      });
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res
+        .status(500)
+        .json({ status: false, message: "Failed to fetch episode." });
     }
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    const episodeElement = $(".breadcrumb-option");
+    const episodeDetailElement = $(".anime-details");
 
-    const kpsResponse = await fetch(`${baseUrl}/assets/js/${kps}.js`);
-    const kpsBody = await kpsResponse.text();
+    let videoUrl = [];
+    const fullText = episodeElement
+      .find(".breadcrumb__links__v2 > span")
+      .text()
+      .trim();
 
-    const extractedData = extractData(kpsBody);
-
-    if (!extractedData) {
-      return res.status(500).json({
-        status: false,
-        message: "Failed to extract necessary data.",
-      });
-    }
-
-    const authResponse = await fetch(
-      `${baseUrl}/assets/${extractedData.MIX_AUTH_ROUTE_PARAM}`
+    // Cari tanggal rilis episode
+    const dateMatch = fullText.match(
+      /(?:Minggu|Senin|Selasa|Rabu|Kamis|Jumat|Sabtu), \d{2} [A-Za-z]{3} \d{4}, \d{2}:\d{2}:\d{2} WIB/
     );
-    const auth = await authResponse.text();
 
-    const promises = servers.map(async (server) => {
-      const videoResponse = await fetch(
-        `${baseUrl}/anime/${animeCode}/${animeId}/episode/${episodeId}?${extractedData.MIX_PAGE_TOKEN_KEY}=${auth}&${extractedData.MIX_STREAM_SERVER_KEY}=${server}`
-      );
-      const videoData = await videoResponse.text();
-      const $ = cheerio.load(videoData);
+    // Video link
+    if (
+      [
+        "mega",
+        "streamtape",
+        "filemoon",
+        "filelions",
+        "streamwish",
+        "vidguard",
+        "rpmshare"
+      ].includes(server)
+    ) {
+      const iframeUrl = episodeDetailElement
+        .find("#animeVideoPlayer .iframe-container iframe")
+        .attr("src");
+      if (iframeUrl) videoUrl.push(iframeUrl);
+    } else {
+      episodeDetailElement
+        .find("#animeVideoPlayer > .mb-3 > .video-content > #player > source")
+        .each((i, el) => {
+          const src = $(el).attr("src");
+          if (src) videoUrl.push(src);
+        });
+    }
 
-      const title = $("#episodeTitle").text().trim();
-      const anime_id = $(".center__nav").attr("href")?.split("/")[5];
-      const prev_episode_number = $(".before__nav.ep-button")
-        .attr("href")
-        ?.split("/")[7];
-      const next_episode_number = $(".after__nav.ep-button")
-        .attr("href")
-        ?.split("/")[7];
-      const videoList = $("#player > source")
-        .map((i, e) => ({
-          url: $(e).attr("src"),
-          type: $(e).attr("type"),
-          size: `${$(e).attr("size")}p (${server})`,
-        }))
-        .get();
+    // Download per episode
+    const downloadLinks = $("#animeDownloadLink h6")
+      .map((i, elem) => {
+        const quality = $(elem).text().trim();
+        const links = $(elem)
+          .nextUntil("h6", "a")
+          .map((j, link) => ({
+            title: $(link).text().trim(),
+            url: $(link).attr("href"),
+          }))
+          .get();
+        return { quality, links };
+      })
+      .get();
 
-      // Extract download links
-      const downloadLinks = $("#animeDownloadLink h6")
-        .map((i, elem) => {
-          const quality = $(elem).text().trim();
-          const links = $(elem)
-            .nextAll("a")
-            .map((j, link) => ({
-              title: $(link).text().trim(),
-              url: $(link).attr("href"),
-            }))
-            .get();
-          return { quality, links };
-        })
-        .get();
+    // Download batch (jika ada)
+    const batchLinks = $("#animeDownloadBatch h6")
+      .map((i, elem) => {
+        const quality = $(elem).text().trim();
+        const links = $(elem)
+          .nextUntil("h6", "a")
+          .map((j, link) => ({
+            title: $(link).text().trim(),
+            url: $(link).attr("href"),
+          }))
+          .get();
+        return { quality, links };
+      })
+      .get();
 
-      return {
-        title,
-        anime_id,
-        prev_episode_number,
-        next_episode_number,
-        videoList,
-        downloadLinks,
-      };
-    });
-
-    const results = await Promise.all(promises);
-    const combinedVideoList = results.flatMap((result) => result.videoList);
-    const title = results[0].title;
-    const anime_id = results[0].anime_id;
-    const prev_episode_number = results[0].prev_episode_number;
-    const next_episode_number = results[0].next_episode_number;
-    const downloadLinks = results[0].downloadLinks;
-
-    res.json({
-      title: title,
-      animeId: anime_id,
-      prevEpisodeNumber: prev_episode_number,
-      nextEpisodeNumber: next_episode_number,
-      videoList: combinedVideoList,
-      downloadLinks: downloadLinks,
+    return res.status(200).json({
+      status: true,
+      message: "Success",
+      data: {
+        title: $("#episodeTitle").text().trim(),
+        animeId,
+        episodeId,
+        server,
+        date: dateMatch ? dateMatch[0] : "Date not found",
+        videoUrl,
+        downloadLinks, // download per episode
+        batchLinks, // download batch (semua episode)
+      },
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ status: false, message: error.message });
+    res.status(500).json({
+      status: false,
+      message: error.message,
+    });
   }
 };
 
@@ -561,33 +562,61 @@ const getBatchAnime = async (req, res) => {
 const getAnimeList = async (req, res) => {
   try {
     const page = req.query.page || 1;
+    const order = req.query.order_by || "text";
 
-    const urlOngoing = `${baseUrl}/anime?order_by=text&page=${page}`;
-    const response = await fetch(urlOngoing);
+    const url = `${baseUrl}/anime?order_by=${order}&page=${page}`;
+    const response = await fetch(url);
     const data = await response.text();
 
     const $ = cheerio.load(data);
     let listAnime = [];
 
-    $("#animeList .anime__text").each((index, element) => {
-      const animeTitle = $(element).find("a.anime__list__link").text().trim();
-      const animeCode = $(element)
-        .find("a.anime__list__link")
-        .attr("href")
-        ?.split("/")[4];
-      const animeId = $(element)
-        .find("a.anime__list__link")
-        .attr("href")
-        ?.split("/")[5];
+    if (order === "text") {
+      // Struktur untuk order_by=text
+      $("#animeList .anime__text").each((index, element) => {
+        const title = $(element).find("a.anime__list__link").text().trim();
+        const animeCode = $(element)
+          .find("a.anime__list__link")
+          .attr("href")
+          ?.split("/")[4];
+        const animeId = $(element)
+          .find("a.anime__list__link")
+          .attr("href")
+          ?.split("/")[5];
 
-      if (animeTitle && animeCode && animeId) {
-        listAnime.push({
-          title: animeTitle,
-          animeCode: animeCode,
-          animeId: animeId,
-        });
-      }
-    });
+        if (title && animeCode && animeId) {
+          listAnime.push({ title, animeCode, animeId });
+        }
+      });
+    } else {
+      // Struktur untuk order_by=oldest / updated / dll
+      $("#animeList > div > div").each((index, element) => {
+        const title = $(element).find("div > h5").text().trim();
+        const image = $(element).find("a > div").attr("data-setbg");
+        const episode = $(element)
+          .find("a > div > div.ep > span")
+          .text()
+          .replace(/\s+/g, " ")
+          .trim();
+        const type = $(element)
+          .find("div > ul > a")
+          .map((i, el) => $(el).text().trim())
+          .get();
+        const animeCode = $(element).find("a").attr("href")?.split("/")[4];
+        const animeId = $(element).find("a").attr("href")?.split("/")[5];
+
+        if (title && animeCode && animeId) {
+          listAnime.push({
+            title,
+            image,
+            episode,
+            type,
+            animeCode,
+            animeId,
+          });
+        }
+      });
+    }
 
     const nextPage = $("a.gray__color .fa-angle-right").length === 0;
     const prevPage = $("a.gray__color .fa-angle-left").length === 0;
@@ -598,6 +627,7 @@ const getAnimeList = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 const getScheduleAnime = async (req, res) => {
   try {
@@ -621,6 +651,7 @@ const getScheduleAnime = async (req, res) => {
       const actualSchedule = $(element)
         .find("a > div > div.ep > span:nth-child(2)")
         .text()
+        .replace(/\s+/g, " ")
         .trim();
       const day = $(element)
         .find("a > div > div.view-end > ul > li:nth-child(1) > span")
@@ -678,7 +709,7 @@ const getSummerAnime = async (req, res) => {
     const order_by = req.query.order_by || "popular";
     const page = req.query.page || 1;
 
-    const urlOngoing = `${baseUrl}/properties/season/summer-2024?order_by=${order_by}&page=${page}`;
+    const urlOngoing = `${baseUrl}/properties/season/summer-2025?order_by=${order_by}&page=${page}`;
     const response = await fetch(urlOngoing);
     const data = await response.text();
 

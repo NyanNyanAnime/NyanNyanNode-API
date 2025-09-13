@@ -14,9 +14,19 @@ const getEpisodeList = async (url, episodeList = []) => {
       .map((index, element) => {
         const episodeTitle = episodeList$(element).text().trim();
         const episodeUrl = episodeList$(element).attr("href");
+
+        let episodeId = null;
+        if (episodeUrl) {
+          const parts = episodeUrl.split("/").filter(Boolean);
+          episodeId = parts.includes("episode")
+            ? parts[parts.length - 1]
+            : null;
+        }
+
         return {
           title: episodeTitle,
           url: episodeUrl,
+          episodeId,
         };
       })
       .get();
